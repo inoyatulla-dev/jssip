@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>JsSIP Phone</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jssip@latest/dist/jssip.min.js"></script>
+  <style>
+    /* Add some basic styling */
+    #phone {
+      width: 300px;
+      margin: 0 auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div id="phone">
+    <h2>JsSIP Phone</h2>
+    <p id="status">Registering...</p> 
+    <input type="text" id="num" placeholder="Enter number to call">
+    <button id="call">Call</button>
+    <button id="hangup" style="display: none;">Hangup</button>
+    <div id="call-status"></div> 
+  </div>
+
+  <script>
+    JsSIP.debug.enable('JsSIP:*');
+    var socket = new JsSIP.WebSocketInterface('wss://call.openshop.uz:8089/asterisk/ws');
+    var configuration = {
+      sockets  : [ socket ],
+      uri      : '1000@call.openshop.uz',
+      password : 'Open@2024'
+    };
+
+    var remoteAudio = new window.Audio();
+    remoteAudio.autoplay = true;
+
+    var ua = new JsSIP.UA(configuration);
+
+    ua.on('connected', function(e) {
+      console.log('Connected to SIP server');
+    });
+
+    ua.on('disconnected', function(e) {
+      console.log('Disconnected from SIP server');
+      $('#status').text('Disconnected'); 
+    });
+
+    ua.on('registered', function(e) {
+      console.log('Registered with SIP server');
+      $('#status').text('Registered'); 
+    });
+
+    ua.on('unregistered', function(e) {
+      console.log('Unregistered from SIP server');
+      $('#status').text('Unregistered'); 
+    });
+
+    ua.on('registrationFailed', function(e) {
+      console.error('Registration failed:', e.cause);
+      $('#status').text('Registration Failed!'); 
+    });
+
+    ua.start();
+
+    var eventHandlers = {
+      'progress': function(e) {
+        console.log('Call is in progress');
+        $('#call-status').text('Ringing...'); 
+        session.connection.ontrack = function(e) {
+          remoteAudio.srcObject = e.streams[0];
+        };
+      },
+      'failed': function(e) {
+        console.error('Call failed:', e.cause);
+        $('#call-status').text('Call Failed!'); 
+        showCallButton();
+      },
+      'ended': function(e) {
+        console.log('Call ended:', e.cause);
+        $('#call-status').text('Call Ended'); 
+        showCallButton();
+      },
+      'confirmed': function(e) {
+        console.log('Call confirmed');
+        $('#call-status').text('Connected'); 
+      }
+    };
+
+    var options = {
+      'eventHandlers'   : eventHandlers,
+      'mediaConstraints' : { 'audio': true, 'video': false }
+    };
+
+    var session; 
+
+    $('#call').click(function(e) {
+      var number = $('#num').val();
+      if (number) {
+        session = ua.call(number, options);
+        $('#call').hide();
+        $('#hangup').show();
+      } else {
+        alert('Please enter a number to call.');
+      }
+    });
+
+    $('#hangup').click(function() {
+      if (session) {
+        session.terminate();
+      }
+      showCallButton();
+    });
+
+    function showCallButton() {
+      $('#call').show();
+      $('#hangup').hide();
+    }
+  </script>
+</body>
+</html>
